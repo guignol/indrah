@@ -1,0 +1,38 @@
+def configFile = file('ram_config.groovy')
+if (!configFile.exists()) {
+    return
+}
+def config = new ConfigSlurper().parse(configFile.text)
+def TARGET_DRIVE = config.RAM.drive ?: ''
+if (TARGET_DRIVE) {
+// imdiskについての参考記事
+// http://siwon-g.hateblo.jp/entry/20151122/1448195973
+// http://jinblog.at.webry.info/201402/article_2.html
+    def dir = TARGET_DRIVE + "\\${rootProject.name}\\build"
+    if (hasDrive(TARGET_DRIVE)) {
+        buildDir = dir
+    } else {
+        def size = config.RAM.size ?: "1g"
+        def format = config.RAM.format ?: "ntfs"
+        // リムーバブルドライブにしているが、
+        // そうでない場合、管理者権限が必要とされ、強制アンマウントが必要になったりする
+        def COMMAND = "imdisk -a -s $size -t vm -o rem -p \"/fs:$format /q /y\" -m " + TARGET_DRIVE
+        println "Mounting RAM Disk to $TARGET_DRIVE is ..."
+        def ret = COMMAND.execute().waitFor()
+        if (ret == 0 && hasDrive(TARGET_DRIVE)) {
+            println "done by command: "
+            buildDir = dir
+        } else {
+            println 'failed by command: '
+        }
+        println ' ' + COMMAND
+    }
+}
+println 'buildDir: ' + buildDir
+
+private static boolean hasDrive(String letter) {
+    def drive = File.listRoots().find {
+        return it.absolutePath.startsWith(letter)
+    }
+    drive != null && drive.exists()
+}
